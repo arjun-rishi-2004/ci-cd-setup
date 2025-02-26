@@ -29,3 +29,8 @@ dependencies {
 tasks.named('test') {
 	useJUnitPlatform()
 }
+bootWar {
+    def profile = project.hasProperty('spring.profiles.active') ? project.getProperty('spring.profiles.active') : 'default'
+    archiveFileName = "${profile}.war" // Name the WAR file based on the profile
+    destinationDirectory.set(file("build/${profile}")) // Output to separate folders
+}

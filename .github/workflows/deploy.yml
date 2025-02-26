@@ -24,17 +24,17 @@ jobs:
 
       # Build CPO WAR
       - name: Build CPO with Gradle
-        run: ./gradlew clean bootWar -Pspring.profiles.active=cpo -PwarOutputDir=build/cpo/
+        run: ./gradlew clean bootWar -Pspring.profiles.active=cpo 
 
-      - name: Move CPO WAR
-        run: mv build/cpo/*.war build/cpo/cpo.war
+      # - name: Move CPO WAR
+      #   run: mv build/cpo/*.war build/cpo/cpo.war
 
       # Build EMSP WAR
       - name: Build EMSP with Gradle
-        run: ./gradlew clean bootWar -Pspring.profiles.active=emsp -PwarOutputDir=build/emsp/
+        run: ./gradlew clean bootWar -Pspring.profiles.active=emsp 
 
-      - name: Move EMSP WAR
-        run: mv build/emsp/*.war build/emsp/emsp.war
+      # - name: Move EMSP WAR
+      #   run: mv build/emsp/*.war build/emsp/emsp.war
 
       - name: Upload Artifacts (CPO & EMSP)
         uses: actions/upload-artifact@v4
