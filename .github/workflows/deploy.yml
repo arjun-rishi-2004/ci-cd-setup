@@ -70,10 +70,10 @@ jobs:
           chmod 600 private_key.pem
 
           # Upload CPO WAR
-          scp -o StrictHostKeyChecking=no -i private_key.pem build/libs/cpo.war $USER@$HOST:/home/ec2-user/tomcat/webapps/cpo.war
+          scp -o StrictHostKeyChecking=no -i private_key.pem build/cpo/cpo.war $USER@$HOST:/home/ec2-user/tomcat/webapps/cpo.war
 
           # Upload EMSP WAR
-          scp -o StrictHostKeyChecking=no -i private_key.pem build/libs/emsp.war $USER@$HOST:/home/ec2-user/tomcat/webapps/emsp.war
+          scp -o StrictHostKeyChecking=no -i private_key.pem build/emsp/emsp.war $USER@$HOST:/home/ec2-user/tomcat/webapps/emsp.war
 
           # Restart Tomcat
           ssh -o StrictHostKeyChecking=no -i private_key.pem $USER@$HOST <<EOF
