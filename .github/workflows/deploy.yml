@@ -45,7 +45,7 @@ jobs:
       - name: Add Host to Known Hosts
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ec2-3-111-29-194.ap-south-1.compute.amazonaws.com >> ~/.ssh/known_hosts
 
       - name: Deploy to AWS EC2
         env:
