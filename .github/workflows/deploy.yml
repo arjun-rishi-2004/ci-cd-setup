@@ -22,33 +22,37 @@ jobs:
       - name: Grant Execute Permissions for Gradle
         run: chmod +x gradlew
 
-      - name: Build CPO WAR
-        run: ./gradlew clean bootWar -Pspring.profiles.active=cpo
+      # Build CPO WAR
+      - name: Build CPO with Gradle
+        run: ./gradlew clean bootWar -Pspring.profiles.active=cpo -PwarOutputDir=build/cpo/
 
-      - name: Rename and Store CPO WAR
-        run: mv build/libs/*.war build/libs/cpo.war
+      - name: Move CPO WAR
+        run: mv build/cpo/*.war build/cpo/cpo.war
 
-      - name: Build EMSP WAR
-        run: ./gradlew clean bootWar -Pspring.profiles.active=emsp
+      # Build EMSP WAR
+      - name: Build EMSP with Gradle
+        run: ./gradlew clean bootWar -Pspring.profiles.active=emsp -PwarOutputDir=build/emsp/
 
-      - name: Rename and Store EMSP WAR
-        run: mv build/libs/*.war build/libs/emsp.war
+      - name: Move EMSP WAR
+        run: mv build/emsp/*.war build/emsp/emsp.war
 
-      - name: Upload Artifacts
+      - name: Upload Artifacts (CPO & EMSP)
         uses: actions/upload-artifact@v4
         with:
-          name: spring-boot-apps
-          path: build/libs/*.war
+          name: war-files
+          path: |
+            build/cpo/cpo.war
+            build/emsp/emsp.war
 
   deploy:
     needs: build
     runs-on: ubuntu-latest
 
     steps:
-      - name: Download Artifacts
+      - name: Download Artifact
         uses: actions/download-artifact@v4
         with:
-          name: spring-boot-apps
+          name: war-files
           path: build/libs/
 
       - name: Add Host to Known Hosts
@@ -65,11 +69,13 @@ jobs:
           echo "$PRIVATE_KEY" > private_key.pem
           chmod 600 private_key.pem
 
-          # Upload both WAR files to Tomcat webapps directory
+          # Upload CPO WAR
           scp -o StrictHostKeyChecking=no -i private_key.pem build/libs/cpo.war $USER@$HOST:/home/ec2-user/tomcat/webapps/cpo.war
+
+          # Upload EMSP WAR
           scp -o StrictHostKeyChecking=no -i private_key.pem build/libs/emsp.war $USER@$HOST:/home/ec2-user/tomcat/webapps/emsp.war
 
-          # Restart Tomcat to load the new WAR files
+          # Restart Tomcat
           ssh -o StrictHostKeyChecking=no -i private_key.pem $USER@$HOST <<EOF
             sudo systemctl restart tomcat
           EOF
