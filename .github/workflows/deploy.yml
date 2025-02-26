@@ -6,7 +6,7 @@ on:
       - main
 
 jobs:
-  deploy_cpo:
+  build:
     runs-on: ubuntu-latest
 
     steps:
@@ -22,64 +22,43 @@ jobs:
       - name: Grant Execute Permissions for Gradle
         run: chmod +x gradlew
 
-      # Build CPO WAR
+      # ✅ Build CPO WAR
       - name: Build CPO with Gradle
-        run: ./gradlew clean bootWar -Pspring.profiles.active=cpo 
+        run: ./gradlew clean bootWar -Pspring.profiles.active=cpo
 
-      - name: Upload CPO Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: cpo-war
-          path: build/libs/*.war
+      - name: Move CPO WAR Outside Build Folder
+        run: |
+          mkdir -p artifacts
+          mv build/libs/*.war artifacts/cpo.war
 
-  deploy_emsp:
-    needs: deploy_cpo
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Grant Execute Permissions for Gradle
-        run: chmod +x gradlew
-
-      # Build EMSP WAR
+      # ✅ Build EMSP WAR (without cleaning)
       - name: Build EMSP with Gradle
-        run: ./gradlew clean bootWar -Pspring.profiles.active=emsp 
+        run: ./gradlew bootWar -Pspring.profiles.active=emsp
 
-      - name: Upload EMSP Artifact
+      - name: Move EMSP WAR Outside Build Folder
+        run: mv build/libs/*.war artifacts/emsp.war
+
+      - name: Upload Artifacts (CPO & EMSP)
         uses: actions/upload-artifact@v4
         with:
-          name: emsp-war
-          path: build/libs/*.war
+          name: war-files
+          path: artifacts/*.war
 
-  deploy_to_ec2:
-    needs: [deploy_cpo, deploy_emsp]
+  deploy:
+    needs: build
     runs-on: ubuntu-latest
 
     steps:
+      - name: Download Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: war-files
+          path: artifacts/
+
       - name: Add Host to Known Hosts
         run: |
           mkdir -p ~/.ssh
           ssh-keyscan -H ec2-3-111-29-194.ap-south-1.compute.amazonaws.com >> ~/.ssh/known_hosts
-
-      - name: Download CPO Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: cpo-war
-          path: build/libs/
-
-      - name: Download EMSP Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: emsp-war
-          path: build/libs/
 
       - name: Deploy to AWS EC2
         env:
@@ -90,11 +69,11 @@ jobs:
           echo "$PRIVATE_KEY" > private_key.pem
           chmod 600 private_key.pem
 
-          # Upload CPO WAR
-          scp -o StrictHostKeyChecking=no -i private_key.pem build/libs/*.war $USER@$HOST:/home/ec2-user/tomcat/webapps/cpo.war
+          # ✅ Upload CPO WAR
+          scp -o StrictHostKeyChecking=no -i private_key.pem artifacts/cpo.war $USER@$HOST:/home/ec2-user/tomcat/webapps/cpo.war
 
-          # Upload EMSP WAR
-          scp -o StrictHostKeyChecking=no -i private_key.pem build/libs/*.war $USER@$HOST:/home/ec2-user/tomcat/webapps/emsp.war
+          # ✅ Upload EMSP WAR
+          scp -o StrictHostKeyChecking=no -i private_key.pem artifacts/emsp.war $USER@$HOST:/home/ec2-user/tomcat/webapps/emsp.war
 
           # Restart Tomcat
           ssh -o StrictHostKeyChecking=no -i private_key.pem $USER@$HOST <<EOF
