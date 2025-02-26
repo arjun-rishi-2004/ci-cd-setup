@@ -53,8 +53,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: war-files
-          path: build/libs/
-
+          path: build/
       - name: Add Host to Known Hosts
         run: |
           mkdir -p ~/.ssh
