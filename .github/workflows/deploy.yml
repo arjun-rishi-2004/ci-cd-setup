@@ -9,7 +9,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-    steps: 
+    steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
@@ -22,13 +22,22 @@ jobs:
       - name: Grant Execute Permissions for Gradle
         run: chmod +x gradlew
 
-      - name: Build with Gradle
-        run: ./gradlew clean bootWar
+      - name: Build CPO WAR
+        run: ./gradlew clean bootWar -Pspring.profiles.active=cpo
 
-      - name: Upload Artifact
+      - name: Rename and Store CPO WAR
+        run: mv build/libs/*.war build/libs/cpo.war
+
+      - name: Build EMSP WAR
+        run: ./gradlew clean bootWar -Pspring.profiles.active=emsp
+
+      - name: Rename and Store EMSP WAR
+        run: mv build/libs/*.war build/libs/emsp.war
+
+      - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: spring-boot-app
+          name: spring-boot-apps
           path: build/libs/*.war
 
   deploy:
@@ -36,10 +45,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Download Artifact
+      - name: Download Artifacts
         uses: actions/download-artifact@v4
         with:
-          name: spring-boot-app
+          name: spring-boot-apps
           path: build/libs/
 
       - name: Add Host to Known Hosts
@@ -56,8 +65,11 @@ jobs:
           echo "$PRIVATE_KEY" > private_key.pem
           chmod 600 private_key.pem
 
-          scp -o StrictHostKeyChecking=no -i private_key.pem build/libs/*.war $USER@$HOST:/home/ec2-user/tomcat/webapps/app.war
+          # Upload both WAR files to Tomcat webapps directory
+          scp -o StrictHostKeyChecking=no -i private_key.pem build/libs/cpo.war $USER@$HOST:/home/ec2-user/tomcat/webapps/cpo.war
+          scp -o StrictHostKeyChecking=no -i private_key.pem build/libs/emsp.war $USER@$HOST:/home/ec2-user/tomcat/webapps/emsp.war
 
+          # Restart Tomcat to load the new WAR files
           ssh -o StrictHostKeyChecking=no -i private_key.pem $USER@$HOST <<EOF
             sudo systemctl restart tomcat
           EOF
