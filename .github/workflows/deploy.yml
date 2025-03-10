@@ -41,6 +41,8 @@ jobs:
         run: |
           docker save emsp:latest -o emsp.tar
           docker save cpo:latest -o cpo.tar
+      - name: Set permissions for Docker images
+        run: chmod 644 emsp.tar cpo.tar
 
       - name: Transfer Docker Images to EC2
         uses: appleboy/scp-action@master
