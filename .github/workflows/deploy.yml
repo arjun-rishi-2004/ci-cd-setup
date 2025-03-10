@@ -19,7 +19,7 @@ jobs:
           java-version: '17'
 
       - name: Build JAR
-        run: ./gradlew clean build -x test
+        run: ./gradlew clean bootJar -x test
 
       - name: Build EMSP Docker Image
         run: |
