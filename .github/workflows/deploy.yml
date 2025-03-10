@@ -1,4 +1,4 @@
-name: CI/CD Deployment
+name: Deploy Spring Boot Apps to EC2 without Docker Registry
 
 on:
   push:
@@ -8,74 +8,70 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-      - name: Set up JDK 17
+      - name: Set up JDK
         uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Grant Execute Permissions for Gradle
-        run: chmod +x gradlew
+      - name: Build JAR
+        run: ./gradlew clean build -x test
 
-      # ✅ Build CPO WAR
-      - name: Build CPO with Gradle
-        run: ./gradlew clean bootWar -Pspring.profiles.active=cpo
-
-      - name: Move CPO WAR Outside Build Folder
+      - name: Build EMSP Docker Image
         run: |
-          mkdir -p artifacts
-          mv build/libs/*.war artifacts/cpo.war
+          docker build -t emsp:latest \
+          --build-arg SCHEMA=emsp \
+          --build-arg SERVER_PORT=9443 \
+          --build-arg SAAS_URL=https://localhost:9443/hooks \
+          --build-arg PUBLIC_URL=https://localhost:9443 .
 
-      # ✅ Build EMSP WAR (without cleaning)
-      - name: Build EMSP with Gradle
-        run: ./gradlew bootWar -Pspring.profiles.active=emsp
+      - name: Build CPO Docker Image
+        run: |
+          docker build -t cpo:latest \
+          --build-arg SCHEMA=cpo \
+          --build-arg SERVER_PORT=8443 \
+          --build-arg SAAS_URL=https://localhost:8443/hooks \
+          --build-arg PUBLIC_URL=https://localhost:8443 .
 
-      - name: Move EMSP WAR Outside Build Folder
-        run: mv build/libs/*.war artifacts/emsp.war
+      - name: Save Docker Images
+        run: |
+          docker save emsp:latest -o emsp.tar
+          docker save cpo:latest -o cpo.tar
 
-      - name: Upload Artifacts (CPO & EMSP)
-        uses: actions/upload-artifact@v4
+      - name: Transfer Docker Images to EC2
+        uses: appleboy/scp-action@master
         with:
-          name: war-files
-          path: artifacts/*.war
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_PRIVATE_KEY }}
+          source: "emsp.tar,cpo.tar"
+          target: "~/"
 
   deploy:
-    needs: build
     runs-on: ubuntu-latest
-
+    needs: build
     steps:
-      - name: Download Artifact
-        uses: actions/download-artifact@v4
+      - name: SSH into EC2 and Deploy Containers
+        uses: appleboy/ssh-action@master
         with:
-          name: war-files
-          path: artifacts/
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_PRIVATE_KEY }}
+          script: |
+            # Load the Docker images
+            docker load -i ~/emsp.tar
+            docker load -i ~/cpo.tar
+            
+            # Remove old containers if they exist
+            docker stop emsp || true && docker rm emsp || true
+            docker stop cpo || true && docker rm cpo || true
 
-      - name: Add Host to Known Hosts
-        run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan -H ec2-3-111-29-194.ap-south-1.compute.amazonaws.com >> ~/.ssh/known_hosts
+            # Run EMSP container
+            docker run -d --name emsp -p 9443:9443 --restart always emsp:latest
 
-      - name: Deploy to AWS EC2
-        env:
-          PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
-          HOST: ec2-3-111-29-194.ap-south-1.compute.amazonaws.com
-          USER: ec2-user
-        run: |
-          echo "$PRIVATE_KEY" > private_key.pem
-          chmod 600 private_key.pem
-
-          # ✅ Upload CPO WAR
-          scp -o StrictHostKeyChecking=no -i private_key.pem artifacts/cpo.war $USER@$HOST:/home/ec2-user/tomcat/webapps/cpo.war
-
-          # ✅ Upload EMSP WAR
-          scp -o StrictHostKeyChecking=no -i private_key.pem artifacts/emsp.war $USER@$HOST:/home/ec2-user/tomcat/webapps/emsp.war
-
-          # Restart Tomcat
-          ssh -o StrictHostKeyChecking=no -i private_key.pem $USER@$HOST <<EOF
-            sudo systemctl restart tomcat
-          EOF
+            # Run CPO container
+            docker run -d --name cpo -p 8443:8443 --restart always cpo:latest
