@@ -13,7 +13,7 @@ ENV SPRING_JPA_HIBERNATE_DEFAULT_SCHEMA=$SCHEMA \
     CUSTOM_PUBLIC_URL=$PUBLIC_URL
 
 # Copy JAR file into the container
-COPY ./build/libs/ocpi-0.0.1-SNAPSHOT.jar /app.jar
+COPY ./build/libs/demo-0.0.1-SNAPSHOT.jar /app.jar
 
 # Expose the application port
 EXPOSE $SERVER_PORT
