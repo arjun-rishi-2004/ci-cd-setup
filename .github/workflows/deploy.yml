@@ -64,7 +64,7 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
           script: |
-            # Load the Docker images
+            # Load the Docker image
             docker load -i ~/emsp.tar
             docker load -i ~/cpo.tar
             
