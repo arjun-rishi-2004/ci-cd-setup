@@ -11,6 +11,7 @@ public class HelloController {
 
     @Value("${custom.message}")
     private String message;
+    
 
     @GetMapping("/info")
     public String getInfo() {
