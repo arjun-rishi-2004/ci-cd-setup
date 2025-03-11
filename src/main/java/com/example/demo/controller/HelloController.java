@@ -15,7 +15,7 @@ public class HelloController {
 
     @GetMapping("/info")
     public String getInfo() {
-        return "Active Profile: " + message;
+        return "Active Profile running: " + message;
     }
 }
 
