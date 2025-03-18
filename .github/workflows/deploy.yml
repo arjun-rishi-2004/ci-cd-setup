@@ -1,9 +1,12 @@
 name: Deploy Spring Boot App to EC2 and ECR
 
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Deployment Target (ec2 or ecr)'
+        required: true
+        default: 'ec2'
 
 jobs:
   build:
@@ -24,10 +27,16 @@ jobs:
       - name: Build Docker Image
         run: docker build -t ocpi_images .
 
+      - name: Save Docker Image for EC2
+        if: inputs.target == 'ec2'
+        run: docker save ocpi_images -o ocpi_images.tar
+
       - name: Tag Docker Image for ECR
+        if: inputs.target == 'ecr'
         run: docker tag ocpi_images:latest 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:latest
 
       - name: Configure AWS CLI
+        if: inputs.target == 'ecr'
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -35,19 +44,20 @@ jobs:
           aws-region: ap-south-1
 
       - name: Login to Amazon ECR
+        if: inputs.target == 'ecr'
         run: |
           aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 148761650284.dkr.ecr.ap-south-1.amazonaws.com
 
       - name: Push Image to ECR
+        if: inputs.target == 'ecr'
         run: docker push 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:latest
 
-      - name: Save Docker Image for EC2
-        run: docker save ocpi_images -o ocpi_images.tar
-
       - name: Set permissions for Docker image
+        if: inputs.target == 'ec2'
         run: chmod 644 ocpi_images.tar
 
       - name: Transfer Docker Image to EC2
+        if: inputs.target == 'ec2'
         uses: appleboy/scp-action@master
         with:
           host: ${{ secrets.EC2_HOST }}
@@ -61,33 +71,29 @@ jobs:
     needs: build
     steps:
       - name: SSH into EC2 and Deploy Containers
+        if: inputs.target == 'ec2'
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_PRIVATE_KEY_TEMP }}
           script: |
-            # Load the Docker image
             docker load -i ~/ocpi_images.tar
-
-            # Stop and remove old containers
             docker stop emsp || true && docker rm emsp || true
             docker stop cpo || true && docker rm cpo || true
 
-            # Run EMSP container
             docker run -d --name emsp -p 9443:9443 --restart always \
               -e "SPRING_PROFILES_ACTIVE=emsp" \
               -e "SCHEMA=emsp" \
               -e "SERVER_PORT=9443" \
               -e "SAAS_URL=https://localhost:9443/hooks" \
               -e "PUBLIC_URL=https://localhost:9443" \
-              148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:latest
+              ocpi_images:latest
 
-            # Run CPO container
             docker run -d --name cpo -p 8443:8443 --restart always \
               -e "SPRING_PROFILES_ACTIVE=cpo" \
               -e "SCHEMA=cpo" \
               -e "SERVER_PORT=8443" \
               -e "SAAS_URL=https://localhost:8443/hooks" \
               -e "PUBLIC_URL=https://localhost:8443" \
-              148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:latest
+              ocpi_images:latest
