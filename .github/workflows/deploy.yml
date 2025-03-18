@@ -27,10 +27,12 @@ jobs:
       - name: Build Docker Image
         run: docker build -t ocpi_images .
 
+      # Tag Docker image for ECR
       - name: Tag Docker Image for ECR
         if: inputs.target == 'ecr'
         run: docker tag ocpi_images:latest 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:latest
 
+      # AWS Configuration & ECR Login
       - name: Configure AWS CLI
         if: inputs.target == 'ecr'
         uses: aws-actions/configure-aws-credentials@v2
@@ -41,13 +43,13 @@ jobs:
 
       - name: Login to Amazon ECR
         if: inputs.target == 'ecr'
-        run: |
-          aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 148761650284.dkr.ecr.ap-south-1.amazonaws.com
+        uses: aws-actions/amazon-ecr-login@v1
 
       - name: Push Image to ECR
         if: inputs.target == 'ecr'
         run: docker push 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:latest
 
+      # EC2 Image Preparation
       - name: Save Docker Image for EC2
         if: inputs.target == 'ec2'
         run: docker save ocpi_images -o ocpi_images.tar
@@ -70,6 +72,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     steps:
+      # Deploy from ECR
       - name: SSH into EC2 and Deploy from ECR
         if: inputs.target == 'ecr'
         uses: appleboy/ssh-action@master
@@ -78,11 +81,12 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_PRIVATE_KEY_TEMP }}
           script: |
+            export DOCKER_CONFIG=$HOME/.docker
             docker stop emsp || true && docker rm emsp || true
             docker stop cpo || true && docker rm cpo || true
             
             docker pull 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:latest
-            
+
             docker run -d --name emsp -p 9443:9443 --restart always \
               -e "SPRING_PROFILES_ACTIVE=emsp" \
               -e "SCHEMA=emsp" \
@@ -99,6 +103,7 @@ jobs:
               -e "PUBLIC_URL=https://localhost:8443" \
               148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:latest
 
+      # Deploy from Local Image (EC2 Direct Deployment)
       - name: SSH into EC2 and Deploy from Local Image
         if: inputs.target == 'ec2'
         uses: appleboy/ssh-action@master
