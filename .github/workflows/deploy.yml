@@ -81,6 +81,9 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_PRIVATE_KEY_TEMP }}
           script: |
+           # Authenticate EC2 instance to ECR
+            aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 148761650284.dkr.ecr.ap-south-1.amazonaws.com
+
             export DOCKER_CONFIG=$HOME/.docker
             docker stop emsp || true && docker rm emsp || true
             docker stop cpo || true && docker rm cpo || true
