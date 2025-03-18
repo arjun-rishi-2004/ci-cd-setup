@@ -1,4 +1,4 @@
-name: Deploy Spring Boot App to EC2
+name: Deploy Spring Boot App to EC2 and ECR
 
 on:
   push:
@@ -22,14 +22,30 @@ jobs:
         run: ./gradlew clean bootJar -x test
 
       - name: Build Docker Image
-        run: |
-          docker build -t my-app:latest .
+        run: docker build -t ocpi_images .
 
-      - name: Save Docker Image
-        run: docker save my-app:latest -o my-app.tar
+      - name: Tag Docker Image for ECR
+        run: docker tag ocpi_images:latest 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:latest
+
+      - name: Configure AWS CLI
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1
+
+      - name: Login to Amazon ECR
+        run: |
+          aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 148761650284.dkr.ecr.ap-south-1.amazonaws.com
+
+      - name: Push Image to ECR
+        run: docker push 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:latest
+
+      - name: Save Docker Image for EC2
+        run: docker save ocpi_images -o ocpi_images.tar
 
       - name: Set permissions for Docker image
-        run: chmod 644 my-app.tar
+        run: chmod 644 ocpi_images.tar
 
       - name: Transfer Docker Image to EC2
         uses: appleboy/scp-action@master
@@ -37,7 +53,7 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_PRIVATE_KEY_TEMP }}
-          source: "my-app.tar"
+          source: "ocpi_images.tar"
           target: "~/"
 
   deploy:
@@ -52,9 +68,9 @@ jobs:
           key: ${{ secrets.EC2_SSH_PRIVATE_KEY_TEMP }}
           script: |
             # Load the Docker image
-            docker load -i ~/my-app.tar
-            
-            # Remove old containers if they exist
+            docker load -i ~/ocpi_images.tar
+
+            # Stop and remove old containers
             docker stop emsp || true && docker rm emsp || true
             docker stop cpo || true && docker rm cpo || true
 
@@ -65,7 +81,7 @@ jobs:
               -e "SERVER_PORT=9443" \
               -e "SAAS_URL=https://localhost:9443/hooks" \
               -e "PUBLIC_URL=https://localhost:9443" \
-              my-app:latest
+              148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:latest
 
             # Run CPO container
             docker run -d --name cpo -p 8443:8443 --restart always \
@@ -74,4 +90,4 @@ jobs:
               -e "SERVER_PORT=8443" \
               -e "SAAS_URL=https://localhost:8443/hooks" \
               -e "PUBLIC_URL=https://localhost:8443" \
-              my-app:latest
+              148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:latest
