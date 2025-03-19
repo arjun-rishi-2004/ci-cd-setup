@@ -32,6 +32,7 @@ jobs:
       - name: Get Latest Tag and Create New One
         id: get_version
         run: |
+          git fetch --tags 
           # Get the latest tag
           LATEST_TAG=$(git tag --sort=-v:refname | grep 'ocpi-stack-dev-v' | head -n 1)
           echo "Latest tag: $LATEST_TAG"
