@@ -29,6 +29,11 @@ jobs:
       - name: Build Docker Image
         run: docker build -t ocpi_images .
 
+      - name: Tag and Push "latest" Image
+        run: |
+          docker tag ocpi_images 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:latest
+          docker push 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:latest
+
       - name: Get Latest Tag and Create New One
         id: get_version
         run: |
@@ -58,10 +63,15 @@ jobs:
           git tag $NEW_TAG
           git push https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git $NEW_TAG
 
-      - name: Tag Docker Image
+      # - name: Tag Docker Image
+      #   run: |
+      #     docker tag ocpi_images myrepo/ocpi-stack:$NEW_TAG
+      #     docker tag ocpi_images myrepo/ocpi-stack:latest
+      - name: Tag and Push Versioned Image
         run: |
-          docker tag ocpi_images myrepo/ocpi-stack:$NEW_TAG
-          docker tag ocpi_images myrepo/ocpi-stack:latest
+          docker tag ocpi_images 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:$NEW_TAG
+          docker push 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:$NEW_TAG
+
       - name: Configure AWS CLI
         if: inputs.target == 'ecr'
         uses: aws-actions/configure-aws-credentials@v2
