@@ -11,6 +11,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -27,10 +29,10 @@ jobs:
       - name: Build Docker Image
         run: docker build -t ocpi_images .
 
-      - name: Get Latest Tag
+      - name: Get Latest Tag and Create New One
         id: get_version
         run: |
-          LATEST_TAG=$(git tag --sort=-v:refname | grep 'ocpi-stack-dev-v' | head -n 1)
+          LATEST_TAG=$(git tag --sort=-v:refname | grep 'ocpi-stack-dev-v' | head -n 1 || echo "")
           echo "Latest tag: $LATEST_TAG"
 
           if [[ -z "$LATEST_TAG" ]]; then
@@ -39,7 +41,9 @@ jobs:
             BASE_VERSION=$(echo "$LATEST_TAG" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
             NEW_TAG="ocpi-stack-dev-v$(echo $BASE_VERSION | awk -F. '{print $1"."$2"."$3+1}')"
           fi
+
           echo "NEW_TAG=$NEW_TAG" >> $GITHUB_ENV
+          echo "New tag: $NEW_TAG"
 
       - name: Configure Git
         run: |
@@ -48,16 +52,15 @@ jobs:
 
       - name: Create & Push New Tag
         env:
-          GITHUB_TOKEN: ${{ secrets.TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git tag $NEW_TAG
-          git push https://x-access-token:{GITHUB_TOKEN}@github.com/${{ github.repository }}.git $NEW_TAG
-
+          git push https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git $NEW_TAG
 
       - name: Tag Docker Image for ECR
         if: inputs.target == 'ecr'
         run: |
-          docker tag ocpi_images:latest 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:${{ steps.version.outputs.NEW_VERSION }}
+          docker tag ocpi_images:latest 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:$NEW_TAG
           docker tag ocpi_images:latest 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:latest
 
       - name: Configure AWS CLI
@@ -76,17 +79,12 @@ jobs:
       - name: Push Image to ECR
         if: inputs.target == 'ecr'
         run: |
-          docker push 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:${{ steps.version.outputs.NEW_VERSION }}
+          docker push 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:$NEW_TAG
           docker push 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:latest
-
 
       - name: Save Docker Image for EC2
         if: inputs.target == 'ec2'
-        run: docker save ocpi_images -o ocpi_images.tar
-
-      - name: Set permissions for Docker image
-        if: inputs.target == 'ec2'
-        run: chmod 644 ocpi_images.tar
+        run: docker save -o ocpi_images.tar ocpi_images
 
       - name: Transfer Docker Image to EC2
         if: inputs.target == 'ec2'
@@ -94,9 +92,10 @@ jobs:
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_PRIVATE_KEY_TEMP }}
+          key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
           source: "ocpi_images.tar"
           target: "~/"
+
   deploy:
     runs-on: ubuntu-latest
     needs: build
@@ -107,7 +106,7 @@ jobs:
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_PRIVATE_KEY_TEMP }}
+          key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
           script: |
             aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 148761650284.dkr.ecr.ap-south-1.amazonaws.com
             docker stop emsp || true && docker rm emsp || true
@@ -122,6 +121,7 @@ jobs:
               -e "SAAS_URL=https://localhost:9443/hooks" \
               -e "PUBLIC_URL=https://localhost:9443" \
               148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:latest
+
             docker run -d --name cpo -p 8443:8443 --restart always \
               -e "SPRING_PROFILES_ACTIVE=cpo" \
               -e "SCHEMA=cpo" \
@@ -129,13 +129,14 @@ jobs:
               -e "SAAS_URL=https://localhost:8443/hooks" \
               -e "PUBLIC_URL=https://localhost:8443" \
               148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:latest
+
       - name: SSH into EC2 and Deploy from Local Image
         if: inputs.target == 'ec2'
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_PRIVATE_KEY_TEMP }}
+          key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
           script: |
             docker load -i ~/ocpi_images.tar
             docker stop emsp || true && docker rm emsp || true
