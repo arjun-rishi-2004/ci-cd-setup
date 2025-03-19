@@ -32,6 +32,7 @@ jobs:
       - name: Get Latest Tag and Create New One
         id: get_version
         run: |
+          # Get the latest tag
           LATEST_TAG=$(git tag --sort=-v:refname | grep 'ocpi-stack-dev-v' | head -n 1 || echo "")
 
           if [[ -z "$LATEST_TAG" ]]; then
@@ -48,7 +49,7 @@ jobs:
           echo "NEW_TAG=$NEW_TAG" >> $GITHUB_ENV
           echo "New tag: $NEW_TAG"
 
-      - name: Configure Git & Push New Tag
+      - name: Push New Tag
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
