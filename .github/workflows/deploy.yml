@@ -33,9 +33,7 @@ jobs:
         id: get_version
         run: |
           git fetch --tags 
-          # Get the latest tag
-          LATEST_TAG=$(git tag --sort=-v:refname | grep 'ocpi-stack-dev-v' | head -n 1)
-          echo "Latest tag: $LATEST_TAG"
+          LATEST_TAG=$(git tag --sort=-v:refname | grep -E 'ocpi-stack-dev-v[0-9]+\.[0-9]+\.[0-9]+' | head -n 1 || echo "")
 
           if [[ -z "$LATEST_TAG" ]]; then
             NEW_TAG="ocpi-stack-dev-v1.0.0"
@@ -60,28 +58,19 @@ jobs:
           git tag $NEW_TAG
           git push https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git $NEW_TAG
 
-      - name: Tag Docker Image for ECR
+      - name: Tag Docker Image
+        run: |
+          docker tag ocpi_images myrepo/ocpi-stack:$NEW_TAG
+          docker tag ocpi_images myrepo/ocpi-stack:latest
+
+      - name: Push Docker Images to ECR
         if: inputs.target == 'ecr'
         run: |
           docker tag ocpi_images:latest 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:$NEW_TAG
           docker tag ocpi_images:latest 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:latest
 
-      - name: Configure AWS CLI
-        if: inputs.target == 'ecr'
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ap-south-1
-
-      - name: Login to Amazon ECR
-        if: inputs.target == 'ecr'
-        run: |
           aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 148761650284.dkr.ecr.ap-south-1.amazonaws.com
-
-      - name: Push Image to ECR
-        if: inputs.target == 'ecr'
-        run: |
+          
           docker push 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:$NEW_TAG
           docker push 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:latest
 
