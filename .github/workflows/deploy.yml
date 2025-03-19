@@ -27,9 +27,25 @@ jobs:
       - name: Build Docker Image
         run: docker build -t ocpi_images .
 
+      - name: Get Current Version
+        id: version
+        run: |
+          VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.0.0")
+          MAJOR=$(echo "$VERSION" | cut -d'.' -f1 | sed 's/v//')
+          MINOR=$(echo "$VERSION" | cut -d'.' -f2)
+          PATCH=$(echo "$VERSION" | cut -d'.' -f3)
+          PATCH=$((PATCH + 1))
+          NEW_VERSION="v$MAJOR.$MINOR.$PATCH"
+          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create Git Tag
+        run: git tag ${{ steps.version.outputs.NEW_VERSION }}
+
       - name: Tag Docker Image for ECR
         if: inputs.target == 'ecr'
-        run: docker tag ocpi_images:latest 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:latest
+        run: |
+          docker tag ocpi_images:latest 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:${{ steps.version.outputs.NEW_VERSION }}
+          docker tag ocpi_images:latest 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:latest
 
       - name: Configure AWS CLI
         if: inputs.target == 'ecr'
@@ -46,7 +62,13 @@ jobs:
 
       - name: Push Image to ECR
         if: inputs.target == 'ecr'
-        run: docker push 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:ocpi-latest
+        run: |
+          docker push 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:${{ steps.version.outputs.NEW_VERSION }}
+          docker push 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:latest
+
+      - name: Push Git Tag
+        if: inputs.target == 'ecr'
+        run: git push origin ${{ steps.version.outputs.NEW_VERSION }}
 
       - name: Save Docker Image for EC2
         if: inputs.target == 'ec2'
@@ -79,11 +101,10 @@ jobs:
           key: ${{ secrets.EC2_SSH_PRIVATE_KEY_TEMP }}
           script: |
             aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 148761650284.dkr.ecr.ap-south-1.amazonaws.com
-
             docker stop emsp || true && docker rm emsp || true
             docker stop cpo || true && docker rm cpo || true
             
-            docker pull 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:ocpi-latest
+            docker pull 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:latest
             
             docker run -d --name emsp -p 9443:9443 --restart always \
               -e "SPRING_PROFILES_ACTIVE=emsp" \
@@ -92,7 +113,6 @@ jobs:
               -e "SAAS_URL=https://localhost:9443/hooks" \
               -e "PUBLIC_URL=https://localhost:9443" \
               148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:latest
-
             docker run -d --name cpo -p 8443:8443 --restart always \
               -e "SPRING_PROFILES_ACTIVE=cpo" \
               -e "SCHEMA=cpo" \
@@ -100,7 +120,6 @@ jobs:
               -e "SAAS_URL=https://localhost:8443/hooks" \
               -e "PUBLIC_URL=https://localhost:8443" \
               148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:latest
-
       - name: SSH into EC2 and Deploy from Local Image
         if: inputs.target == 'ec2'
         uses: appleboy/ssh-action@master
@@ -112,7 +131,6 @@ jobs:
             docker load -i ~/ocpi_images.tar
             docker stop emsp || true && docker rm emsp || true
             docker stop cpo || true && docker rm cpo || true
-
             docker run -d --name emsp -p 9443:9443 --restart always \
               -e "SPRING_PROFILES_ACTIVE=emsp" \
               -e "SCHEMA=emsp" \
@@ -120,7 +138,6 @@ jobs:
               -e "SAAS_URL=https://localhost:9443/hooks" \
               -e "PUBLIC_URL=https://localhost:9443" \
               ocpi_images:latest
-
             docker run -d --name cpo -p 8443:8443 --restart always \
               -e "SPRING_PROFILES_ACTIVE=cpo" \
               -e "SCHEMA=cpo" \
