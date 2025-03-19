@@ -29,10 +29,16 @@ jobs:
       - name: Build Docker Image
         run: docker build -t ocpi_images .
 
-      - name: Tag and Push "latest" Image
+      - name: Configure AWS CLI
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1
+
+      - name: Login to Amazon ECR
         run: |
-          docker tag ocpi_images 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:latest
-          docker push 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:latest
+          aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 148761650284.dkr.ecr.ap-south-1.amazonaws.com
 
       - name: Get Latest Tag and Create New One
         id: get_version
@@ -63,38 +69,13 @@ jobs:
           git tag $NEW_TAG
           git push https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git $NEW_TAG
 
-      # - name: Tag Docker Image
-      #   run: |
-      #     docker tag ocpi_images myrepo/ocpi-stack:$NEW_TAG
-      #     docker tag ocpi_images myrepo/ocpi-stack:latest
-      - name: Tag and Push Versioned Image
+      - name: Tag and Push Docker Images
         run: |
+          docker tag ocpi_images 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:latest
           docker tag ocpi_images 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:$NEW_TAG
-          docker push 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:$NEW_TAG
-
-      - name: Configure AWS CLI
-        if: inputs.target == 'ecr'
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ap-south-1
-  
-      - name: Login to Amazon ECR
-        if: inputs.target == 'ecr'
-        run: |
-            aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 148761650284.dkr.ecr.ap-south-1.amazonaws.com
-  
-      - name: Push Docker Images to ECR
-        if: inputs.target == 'ecr'
-        run: |
-          docker tag ocpi_images:latest 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:$NEW_TAG
-          docker tag ocpi_images:latest 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:latest
-
-          aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 148761650284.dkr.ecr.ap-south-1.amazonaws.com
           
-          docker push 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:$NEW_TAG
           docker push 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:latest
+          docker push 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:$NEW_TAG
 
       - name: Save Docker Image for EC2
         if: inputs.target == 'ec2'
@@ -124,13 +105,13 @@ jobs:
           script: |
             aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 148761650284.dkr.ecr.ap-south-1.amazonaws.com
             
+            # Pull the latest image BEFORE stopping existing containers
+            docker pull 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:latest
+            
             # Stop and remove existing containers
             docker stop emsp cpo || true
             docker rm emsp cpo || true
-            
-            # Pull the latest image
-            docker pull 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:latest
-            
+
             # Run EMSP Container
             docker run -d --name emsp -p 9443:9443 --restart always \
               -e "SPRING_PROFILES_ACTIVE=emsp" \
@@ -157,6 +138,7 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
           script: |
+            # Load the Docker image before stopping existing containers
             docker load -i ~/ocpi_images.tar
             
             # Stop and remove existing containers
