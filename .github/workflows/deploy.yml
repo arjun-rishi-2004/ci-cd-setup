@@ -66,9 +66,9 @@ jobs:
           docker push 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:${{ steps.version.outputs.NEW_VERSION }}
           docker push 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:latest
 
-      - name: Push Git Tag
-        if: inputs.target == 'ecr'
-        run: git push origin ${{ steps.version.outputs.NEW_VERSION }}
+      # - name: Push Git Tag
+      #   if: inputs.target == 'ecr'
+      #   run: git push origin ${{ steps.version.outputs.NEW_VERSION }}
 
       - name: Save Docker Image for EC2
         if: inputs.target == 'ec2'
