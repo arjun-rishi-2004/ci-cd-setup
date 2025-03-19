@@ -27,19 +27,32 @@ jobs:
       - name: Build Docker Image
         run: docker build -t ocpi_images .
 
-      - name: Get Current Version
-        id: version
+      - name: Get Latest Tag
+        id: get_version
         run: |
-          VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.0.0")
-          MAJOR=$(echo "$VERSION" | cut -d'.' -f1 | sed 's/v//')
-          MINOR=$(echo "$VERSION" | cut -d'.' -f2)
-          PATCH=$(echo "$VERSION" | cut -d'.' -f3)
-          PATCH=$((PATCH + 1))
-          NEW_VERSION="v$MAJOR.$MINOR.$PATCH"
-          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_OUTPUT
+          LATEST_TAG=$(git tag --sort=-v:refname | grep 'ocpi-stack-dev-v' | head -n 1)
+          echo "Latest tag: $LATEST_TAG"
 
-      - name: Create Git Tag
-        run: git tag ${{ steps.version.outputs.NEW_VERSION }}
+          if [[ -z "$LATEST_TAG" ]]; then
+            NEW_TAG="ocpi-stack-dev-v1.0.0"
+          else
+            BASE_VERSION=$(echo "$LATEST_TAG" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+            NEW_TAG="ocpi-stack-dev-v$(echo $BASE_VERSION | awk -F. '{print $1"."$2"."$3+1}')"
+          fi
+          echo "NEW_TAG=$NEW_TAG" >> $GITHUB_ENV
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Create & Push New Tag
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git tag $NEW_TAG
+          git push https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git $NEW_TAG
+
 
       - name: Tag Docker Image for ECR
         if: inputs.target == 'ecr'
@@ -66,9 +79,6 @@ jobs:
           docker push 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:${{ steps.version.outputs.NEW_VERSION }}
           docker push 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:latest
 
-      # - name: Push Git Tag
-      #   if: inputs.target == 'ecr'
-      #   run: git push origin ${{ steps.version.outputs.NEW_VERSION }}
 
       - name: Save Docker Image for EC2
         if: inputs.target == 'ec2'
@@ -87,7 +97,6 @@ jobs:
           key: ${{ secrets.EC2_SSH_PRIVATE_KEY_TEMP }}
           source: "ocpi_images.tar"
           target: "~/"
-
   deploy:
     runs-on: ubuntu-latest
     needs: build
