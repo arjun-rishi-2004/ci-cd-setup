@@ -48,10 +48,10 @@ jobs:
 
       - name: Create & Push New Tag
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.TOKEN }}
         run: |
           git tag $NEW_TAG
-          git push https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git $NEW_TAG
+          git push https://x-access-token:{GITHUB_TOKEN}@github.com/${{ github.repository }}.git $NEW_TAG
 
 
       - name: Tag Docker Image for ECR
