@@ -71,10 +71,14 @@ jobs:
 
       - name: Tag and Push Docker Images
         run: |
-          docker tag ocpi_images 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:latest
-          docker tag ocpi_images 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:$NEW_TAG
-          
+          # Build the first image (for the "latest" tag)
+          docker build -t ocpi_images:latest .
+          docker tag ocpi_images:latest 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:latest
           docker push 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:latest
+
+          # Build the second image (for the versioned tag)
+          docker build -t ocpi_images:$NEW_TAG .
+          docker tag ocpi_images:$NEW_TAG 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:$NEW_TAG
           docker push 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:$NEW_TAG
 
       - name: Save Docker Image for EC2
