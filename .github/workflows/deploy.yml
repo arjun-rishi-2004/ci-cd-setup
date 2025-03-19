@@ -80,7 +80,11 @@ jobs:
           docker build --no-cache -t ocpi_images:$NEW_TAG --build-arg CACHEBUST=$(date +%s) .
           docker tag ocpi_images:$NEW_TAG 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:$NEW_TAG
           docker push 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:$NEW_TAG
-
+      - name: Cleanup Untagged Images
+        run: |
+          aws ecr batch-delete-image --repository-name ocpi_images --image-ids $(aws ecr list-images --repository-name ocpi_images --filter "tagStatus=UNTAGGED" --query 'imageIds[*]' --output json)
+        
+        
       - name: Save Docker Image for EC2
         if: inputs.target == 'ec2'
         run: docker save -o ocpi_images.tar ocpi_images
