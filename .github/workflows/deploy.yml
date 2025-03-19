@@ -46,7 +46,7 @@ jobs:
 
       - name: Push Image to ECR
         if: inputs.target == 'ecr'
-        run: docker push 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:latest
+        run: docker push 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:ocpi-latest
 
       - name: Save Docker Image for EC2
         if: inputs.target == 'ec2'
@@ -83,7 +83,7 @@ jobs:
             docker stop emsp || true && docker rm emsp || true
             docker stop cpo || true && docker rm cpo || true
             
-            docker pull 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:latest
+            docker pull 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:ocpi-latest
             
             docker run -d --name emsp -p 9443:9443 --restart always \
               -e "SPRING_PROFILES_ACTIVE=emsp" \
