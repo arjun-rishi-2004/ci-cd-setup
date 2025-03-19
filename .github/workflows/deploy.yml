@@ -29,7 +29,7 @@ jobs:
       - name: Build Docker Image
         run: docker build -t ocpi_images .
 
-      - name: Get Latest Git Tag & Create New One
+      - name: Get Latest Tag and Create New One
         id: get_version
         run: |
           LATEST_TAG=$(git tag --sort=-v:refname | grep 'ocpi-stack-dev-v' | head -n 1 || echo "")
@@ -38,7 +38,11 @@ jobs:
             NEW_TAG="ocpi-stack-dev-v1.0.0"
           else
             BASE_VERSION=$(echo "$LATEST_TAG" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
-            NEW_TAG="ocpi-stack-dev-v$(echo $BASE_VERSION | awk -F. '{print $1"."$2"."$3+1}')"
+            MAJOR=$(echo $BASE_VERSION | cut -d. -f1)
+            MINOR=$(echo $BASE_VERSION | cut -d. -f2)
+            PATCH=$(echo $BASE_VERSION | cut -d. -f3)
+            NEW_PATCH=$((PATCH + 1))
+            NEW_TAG="ocpi-stack-dev-v$MAJOR.$MINOR.$NEW_PATCH"
           fi
 
           echo "NEW_TAG=$NEW_TAG" >> $GITHUB_ENV
