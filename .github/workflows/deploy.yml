@@ -89,6 +89,12 @@ jobs:
           else
             echo "No untagged images found, skipping delete."
           fi
+      
+      - name: Force ECS Deployment
+        if: inputs.target == 'ecr'
+        run: |
+          aws ecs update-service --cluster ocpi --service Ocpi_service_1 --force-new-deployment
+      
       - name: Save Docker Image for EC2
         if: inputs.target == 'ec2'
         run: docker save -o ocpi_images.tar ocpi_images
