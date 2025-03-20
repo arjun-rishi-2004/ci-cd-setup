@@ -1,12 +1,12 @@
-name: Deploy Spring Boot App to ECR
+name: Deploy Spring Boot App to EC2 or ECR
 
 on:
   workflow_dispatch:
     inputs:
       target:
-        description: 'Deployment Target (ecr)'
+        description: 'Deployment Target (ec2 or ecr)'
         required: true
-        default: 'ecr'
+        default: 'ec2'
 
 jobs:
   build:
@@ -71,21 +71,26 @@ jobs:
 
       - name: Tag and Push Docker Images
         run: |
+          # Build & push the latest image
+          docker build --no-cache -t ocpi_images:latest --build-arg CACHEBUST=$(date +%s) .
           docker tag ocpi_images:latest 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:latest
           docker push 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:latest
 
+          # Build & push the versioned image separately
+          docker build --no-cache -t ocpi_images:$NEW_TAG --build-arg CACHEBUST=$(date +%s) .
           docker tag ocpi_images:$NEW_TAG 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:$NEW_TAG
           docker push 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:$NEW_TAG
-
       - name: Cleanup Untagged Images
         run: |
           UNTAGGED_IMAGES=$(aws ecr list-images --repository-name ocpi_images --filter "tagStatus=UNTAGGED" --query 'imageIds[*]' --output json)
+
           if [ "$UNTAGGED_IMAGES" != "[]" ]; then
             aws ecr batch-delete-image --repository-name ocpi_images --image-ids "$UNTAGGED_IMAGES"
           else
             echo "No untagged images found, skipping delete."
           fi
-  
+      
+
   deploy:
     runs-on: ubuntu-latest
     needs: build
@@ -98,5 +103,8 @@ jobs:
           aws-region: ap-south-1
           
       - name: Force ECS Deployment
+        if: inputs.target == 'ecr'
         run: |
           aws ecs update-service --cluster ocpi --service Ocpi_service_1 --force-new-deployment
+        
+     
