@@ -90,11 +90,6 @@ jobs:
             echo "No untagged images found, skipping delete."
           fi
       
-      - name: Force ECS Deployment
-        if: inputs.target == 'ecr'
-        run: |
-          aws ecs update-service --cluster ocpi --service Ocpi_service_1 --force-new-deployment
-      
       - name: Save Docker Image for EC2
         if: inputs.target == 'ec2'
         run: docker save -o ocpi_images.tar ocpi_images
@@ -113,70 +108,76 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     steps:
-      - name: Deploy to EC2 from ECR
+
+      - name: Force ECS Deployment
         if: inputs.target == 'ecr'
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
-          script: |
-            aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 148761650284.dkr.ecr.ap-south-1.amazonaws.com
+        run: |
+          aws ecs update-service --cluster ocpi --service Ocpi_service_1 --force-new-deployment
+        
+      # - name: Deploy to EC2 from ECR
+      #   if: inputs.target == 'ecr'
+      #   uses: appleboy/ssh-action@master
+      #   with:
+      #     host: ${{ secrets.EC2_HOST }}
+      #     username: ${{ secrets.EC2_USER }}
+      #     key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+      #     script: |
+      #       aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 148761650284.dkr.ecr.ap-south-1.amazonaws.com
             
-            # Pull the latest image BEFORE stopping existing containers
-            docker pull 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:latest
+      #       # Pull the latest image BEFORE stopping existing containers
+      #       docker pull 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:latest
             
-            # Stop and remove existing containers
-            docker stop emsp cpo || true
-            docker rm emsp cpo || true
+      #       # Stop and remove existing containers
+      #       docker stop emsp cpo || true
+      #       docker rm emsp cpo || true
 
-            # Run EMSP Container
-            docker run -d --name emsp -p 9443:9443 --restart always \
-              -e "SPRING_PROFILES_ACTIVE=emsp" \
-              -e "SCHEMA=emsp" \
-              -e "SERVER_PORT=9443" \
-              -e "SAAS_URL=https://localhost:9443/hooks" \
-              -e "PUBLIC_URL=https://localhost:9443" \
-              148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:latest
+      #       # Run EMSP Container
+      #       docker run -d --name emsp -p 9443:9443 --restart always \
+      #         -e "SPRING_PROFILES_ACTIVE=emsp" \
+      #         -e "SCHEMA=emsp" \
+      #         -e "SERVER_PORT=9443" \
+      #         -e "SAAS_URL=https://localhost:9443/hooks" \
+      #         -e "PUBLIC_URL=https://localhost:9443" \
+      #         148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:latest
 
-            # Run CPO Container
-            docker run -d --name cpo -p 8443:8443 --restart always \
-              -e "SPRING_PROFILES_ACTIVE=cpo" \
-              -e "SCHEMA=cpo" \
-              -e "SERVER_PORT=8443" \
-              -e "SAAS_URL=https://localhost:8443/hooks" \
-              -e "PUBLIC_URL=https://localhost:8443" \
-              148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:latest
+      #       # Run CPO Container
+      #       docker run -d --name cpo -p 8443:8443 --restart always \
+      #         -e "SPRING_PROFILES_ACTIVE=cpo" \
+      #         -e "SCHEMA=cpo" \
+      #         -e "SERVER_PORT=8443" \
+      #         -e "SAAS_URL=https://localhost:8443/hooks" \
+      #         -e "PUBLIC_URL=https://localhost:8443" \
+      #         148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:latest
 
-      - name: Deploy to EC2 from Local Image
-        if: inputs.target == 'ec2'
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
-          script: |
-            # Load the Docker image before stopping existing containers
-            docker load -i ~/ocpi_images.tar
+      # - name: Deploy to EC2 from Local Image
+      #   if: inputs.target == 'ec2'
+      #   uses: appleboy/ssh-action@master
+      #   with:
+      #     host: ${{ secrets.EC2_HOST }}
+      #     username: ${{ secrets.EC2_USER }}
+      #     key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+      #     script: |
+      #       # Load the Docker image before stopping existing containers
+      #       docker load -i ~/ocpi_images.tar
             
-            # Stop and remove existing containers
-            docker stop emsp cpo || true
-            docker rm emsp cpo || true
+      #       # Stop and remove existing containers
+      #       docker stop emsp cpo || true
+      #       docker rm emsp cpo || true
             
-            # Run EMSP Container
-            docker run -d --name emsp -p 9443:9443 --restart always \
-              -e "SPRING_PROFILES_ACTIVE=emsp" \
-              -e "SCHEMA=emsp" \
-              -e "SERVER_PORT=9443" \
-              -e "SAAS_URL=https://localhost:9443/hooks" \
-              -e "PUBLIC_URL=https://localhost:9443" \
-              ocpi_images:latest
+      #       # Run EMSP Container
+      #       docker run -d --name emsp -p 9443:9443 --restart always \
+      #         -e "SPRING_PROFILES_ACTIVE=emsp" \
+      #         -e "SCHEMA=emsp" \
+      #         -e "SERVER_PORT=9443" \
+      #         -e "SAAS_URL=https://localhost:9443/hooks" \
+      #         -e "PUBLIC_URL=https://localhost:9443" \
+      #         ocpi_images:latest
 
-            # Run CPO Container
-            docker run -d --name cpo -p 8443:8443 --restart always \
-              -e "SPRING_PROFILES_ACTIVE=cpo" \
-              -e "SCHEMA=cpo" \
-              -e "SERVER_PORT=8443" \
-              -e "SAAS_URL=https://localhost:8443/hooks" \
-              -e "PUBLIC_URL=https://localhost:8443" \
-              ocpi_images:latest
+      #       # Run CPO Container
+      #       docker run -d --name cpo -p 8443:8443 --restart always \
+      #         -e "SPRING_PROFILES_ACTIVE=cpo" \
+      #         -e "SCHEMA=cpo" \
+      #         -e "SERVER_PORT=8443" \
+      #         -e "SAAS_URL=https://localhost:8443/hooks" \
+      #         -e "PUBLIC_URL=https://localhost:8443" \
+      #         ocpi_images:latest
