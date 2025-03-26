@@ -104,10 +104,10 @@ jobs:
           
       - name: Deploy Service 1 (Different Message)
         run: |
-          aws ecs update-service --cluster ocpi --service Ocpi_service_1 --force-new-deployment \
-          --task-definition ocpi-task-definition-service1.json
+          aws ecs update-service --cluster ocpi_cluster --service Ocpi_v2_service_1 --force-new-deployment \
+          --task-definition ocpi_v2_service_1:latest
 
       - name: Deploy Service 2 (Different Message)
         run: |
-          aws ecs update-service --cluster ocpi --service Ocpi_service_2 --force-new-deployment \
-          --task-definition ocpi-task-definition-service2.json
+          aws ecs update-service --cluster ocpi_cluster --service Ocpi_v2_service_2 --force-new-deployment \
+          --task-definition ocpi_v2_service_2:latest
