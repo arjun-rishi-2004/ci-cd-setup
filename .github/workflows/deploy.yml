@@ -102,12 +102,22 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-south-1
           
+      - name: Get Latest Task Definition for Service 1
+        run: |
+          LATEST_TASK_DEF=$(aws ecs list-task-definitions --family ocpi_v2_service_1 --sort DESC --query 'taskDefinitionArns[0]' --output text)
+          echo "LATEST_TASK_DEF=$LATEST_TASK_DEF" >> $GITHUB_ENV
+
       - name: Deploy Service 1 (Different Message)
         run: |
           aws ecs update-service --cluster ocpi_cluster --service Ocpi_v2_service_1 --force-new-deployment \
-          --task-definition ocpi_v2_service_1:latest
+          --task-definition $LATEST_TASK_DEF
+
+      - name: Get Latest Task Definition for Service 2
+        run: |
+          LATEST_TASK_DEF=$(aws ecs list-task-definitions --family ocpi_v2_service_2 --sort DESC --query 'taskDefinitionArns[0]' --output text)
+          echo "LATEST_TASK_DEF=$LATEST_TASK_DEF" >> $GITHUB_ENV
 
       - name: Deploy Service 2 (Different Message)
         run: |
           aws ecs update-service --cluster ocpi_cluster --service Ocpi_v2_service_2 --force-new-deployment \
-          --task-definition ocpi_v2_service_2:latest
+          --task-definition $LATEST_TASK_DEF
