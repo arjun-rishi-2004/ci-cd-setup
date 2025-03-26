@@ -6,7 +6,7 @@ on:
       target:
         description: 'Deployment Target (ec2 or ecr)'
         required: true
-        default: 'ec2'
+        default: 'ecr'
 
 jobs:
   build:
@@ -80,6 +80,7 @@ jobs:
           docker build --no-cache -t ocpi_images:$NEW_TAG --build-arg CACHEBUST=$(date +%s) .
           docker tag ocpi_images:$NEW_TAG 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:$NEW_TAG
           docker push 148761650284.dkr.ecr.ap-south-1.amazonaws.com/ocpi_images:$NEW_TAG
+
       - name: Cleanup Untagged Images
         run: |
           UNTAGGED_IMAGES=$(aws ecr list-images --repository-name ocpi_images --filter "tagStatus=UNTAGGED" --query 'imageIds[*]' --output json)
@@ -89,7 +90,6 @@ jobs:
           else
             echo "No untagged images found, skipping delete."
           fi
-      
 
   deploy:
     runs-on: ubuntu-latest
@@ -102,9 +102,12 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-south-1
           
-      - name: Force ECS Deployment
-        if: inputs.target == 'ecr'
+      - name: Deploy Service 1 (Different Message)
         run: |
-          aws ecs update-service --cluster ocpi --service Ocpi_service_1 --force-new-deployment
-        
-     
+          aws ecs update-service --cluster ocpi --service Ocpi_service_1 --force-new-deployment \
+          --task-definition ocpi-task-definition-service1.json
+
+      - name: Deploy Service 2 (Different Message)
+        run: |
+          aws ecs update-service --cluster ocpi --service Ocpi_service_2 --force-new-deployment \
+          --task-definition ocpi-task-definition-service2.json
