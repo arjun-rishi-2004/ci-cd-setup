@@ -1,0 +1,14 @@
+# .github/workflows/test.yml
+name: Test Workflow 2
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test-job:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Do nothing
+        run: echo "This is a test workflow. Nothing happens here."
