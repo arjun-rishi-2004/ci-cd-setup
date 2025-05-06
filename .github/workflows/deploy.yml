@@ -1,4 +1,4 @@
-name: Deploy Spring Boot App to EC2 or ECR test
+name: Deploy Spring Boot App to EC2 or ECR test 1
 
 on:
   workflow_dispatch:
