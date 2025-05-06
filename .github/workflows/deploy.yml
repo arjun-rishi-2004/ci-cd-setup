@@ -6,7 +6,7 @@ on:
       target:
         description: 'Deployment Target (ec2 or ecr)'
         required: true
-        default: 'ecr'
+        default: 'ec2'
 
 jobs:
   build:
