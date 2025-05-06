@@ -1,4 +1,6 @@
+
 name: Deploy Spring Boot App to EC2 or ECR in Backup branch
+
 
 on:
   workflow_dispatch:
@@ -6,7 +8,7 @@ on:
       target:
         description: 'Deployment Target (ec2 or ecr)'
         required: true
-        default: 'ecr'
+        default: 'ec2'
 
 jobs:
   build:
