@@ -1,5 +1,5 @@
 # .github/workflows/test.yml
-name: Test Workflow 1
+name: Test Workflow 2
 
 on:
   pull_request:
